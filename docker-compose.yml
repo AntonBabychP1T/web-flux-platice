@@ -1,0 +1,37 @@
+version: "3.8"
+
+services:
+  mysqldb:
+    image: mysql:8.0.33
+    restart: unless-stopped
+    env_file: ./.env
+    ports:
+      - $MYSQL_LOCAL_PORT:$MYSQL_DOCKER_PORT
+    environment:
+      MYSQL_ROOT_PASSWORD: $MYSQL_ROOT_PASSWORD
+      MYSQL_DATABASE: $MYSQL_DATABASE
+      MYSQL_USER: $MYSQL_USER
+      MYSQL_PASSWORD: $MYSQL_PASSWORD
+
+  app:
+    depends_on:
+      - mysqldb
+    restart: on-failure
+    image: reactive_test
+    build: .
+    env_file: ./.env
+    ports:
+      - $SPRING_LOCAL_PORT:$SPRING_DOCKER_PORT
+      - $DEBUG_PORT:$DEBUG_PORT
+    environment:
+      SPRING_APPLICATION_JSON: '{
+        "spring.r2dbc.url" : "r2dbc:mysql://mysqldb:3306/$MYSQL_DATABASE?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false&useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC",
+        "spring.r2dbc.username" : "$MYSQL_USER",
+        "spring.r2dbc.password" : "$MYSQL_PASSWORD",
+        "spring.liquibase.change-log" : "classpath:/db/changelog/db.changelog-master.yaml",
+        "logging.level.liquibase":"DEBUG",
+        "spring.jpa.show-sql" : "true",
+        "jwt.expiration" : "$JWT_EXPIRATION_TIME",
+        "jwt_secret" : "$JWT_SECRET"
+        }'
+      JAVA_TOOL_OPTIONS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
